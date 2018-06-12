@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 #test for python already installed for opencv
 python3 -c "import cv2" > /dev/null 2>&1

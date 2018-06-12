@@ -5,7 +5,6 @@
 
 import os
 import sys
-import distro
 import platform
 import numpy
 import warnings
@@ -15,15 +14,10 @@ from enum import Enum
 from ctypes import *
 
 # Low-level API
-# x86_64, Raspberry Pi or OSX
+# x86_64, Raspberry Pi or macOS
 dll_file = "libhs.so"
-if distro.linux_distribution()[0] == 'Ubuntu' \
-   and distro.linux_distribution()[1] == '16.04' \
-   and platform.machine() == 'x86_64':
-	arch_path = 'libs/linux/x86_64'
-elif 'Raspbian' in distro.linux_distribution()[0] \
-   and platform.machine() == 'armv7l':
-	arch_path = 'libs/linux/armv7l'
+if platform.system() == 'Linux':
+	arch_path = 'libs/linux/%s' % (platform.machine())
 elif platform.system() == 'Darwin':
 	arch_path = 'libs/macos'
 	dll_file = "libhs.dylib"
@@ -414,6 +408,7 @@ class HS:
 
 		self.imgSize = image.shape[:2]
 		output, _ = self.graph.GetResult()
+		#print(output)
 
 		for k,v in kwargs.items(): 
 			exec('self.'+k+'=v')
@@ -456,6 +451,8 @@ class HS:
 			return ['graph_ocr',  0.0078125, 1.0, False, (40,40), 7]
 		elif modelName is 'squeeze':
 			return ['graph_sz',  1, 110.5, False, (227,227), 8]
+		elif modelName is 'FaceDetector_Plus':
+			return ['graph_face_SSD_Plus',  1, 110.5, False, (320,320), 2]
 		else:
 			self.msg('Using user\'s graph file')
 			return None 
