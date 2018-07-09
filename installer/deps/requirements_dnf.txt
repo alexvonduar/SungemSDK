@@ -1,0 +1,4 @@
+redhat-rpm-config
+gcc-c++
+python3-pip
+python3-devel

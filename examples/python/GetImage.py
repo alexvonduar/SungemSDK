@@ -7,8 +7,12 @@ sys.path.append('../../api/')
 import hsapi as hs
 
 # Load CNN to device and set scale / mean
-net = hs.HS('mnist', zoom = True, verbose = 2)
-while(1):
-	image = net.getImage()
-	cv2.imshow('image',image)
-	cv2.waitKey(1)
+net = hs.HS('mnist', zoom = False, verbose = 2)
+
+try:
+	while(1):
+		image = net.getImage()
+		cv2.imshow('image',image)
+		cv2.waitKey(1)
+finally:
+	net.quit()

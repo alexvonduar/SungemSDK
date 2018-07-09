@@ -16,3 +16,5 @@ for n in [1,2,3,4]:
 	img = cv2.imread(imgname)
 	result = net.run(img)
 	print(result[1])
+
+net.quit()

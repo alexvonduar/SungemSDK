@@ -12,6 +12,7 @@ import cv2
 import pdb
 from enum import Enum
 from ctypes import *
+from util import *
 
 # Low-level API
 # x86_64, Raspberry Pi or macOS
@@ -222,6 +223,8 @@ class Device:
 			v = create_string_buffer(640*360*3)
 			memmove(v, image, 640*360*3)
 			image = numpy.frombuffer(v.raw, dtype=numpy.uint8).reshape(360,640,3)
+			import time
+			time.sleep(0.015)
 		else:
 			v = create_string_buffer(1920*1080*3)
 			memmove(v, image, 1920*1080*3)
@@ -341,6 +344,7 @@ class HS:
 		self.dataFolder = '../misc/'
 		self.zoom = True
 		self.labels = None
+		self.deviceIdx = 0
 		
 		# Default SSD threshold
 		self.threshSSD = 0.55
@@ -353,9 +357,9 @@ class HS:
 		if len(self.devices) == 0:
 			print('No devices found')
 			quit()
-		self.device = Device(self.devices[0])
+		self.device = Device(self.devices[self.deviceIdx])
 		self.device.OpenDevice()
-		self.msg('Device found [0]')
+		self.msg('Device index [%d]' % self.deviceIdx)
 		
 		model_param = self.getParam(modelName)
 		
@@ -382,14 +386,17 @@ class HS:
 				self.msg('Model loaded to Python')
 		except:
 			print('Error: Failed to load graph, please check file path')
+			print('Graph path:%s' % self.graphPath)
 			quit()
 		
 		try:
 			self.graph = self.device.AllocateGraph(self.graph_byte, self.scale, -self.mean)
 			self.msg('Model allocated to device')
 		except:
-			print('Error: Failed to allocate graph to device, please re-plug the device')
+			print('Error: Failed to allocate graph to device, please try again')
+			self.device.CloseDevice()
 			quit()
+			
 		self.msg('','=')
 		
 	def run(self, img=None, **kwargs):
@@ -435,24 +442,24 @@ class HS:
 	def getParam(self,modelName):
 		# Model filename, scale, mean, net input is gray?, image size, graph ID
 		self.msg('Graph:' + modelName)
-		if modelName is 'mnist':
+		if modelName == 'mnist':
 			return ['graph_mnist', 0.007843, 1.0, True, (28,28), 1]
-		elif modelName is 'FaceDetector':
+		elif modelName == 'FaceDetector':
 			return ['graph_face_SSD', 0.007843, 1.0, False, (300,300), 2]
-		elif modelName is 'ObjectDetector':
+		elif modelName == 'ObjectDetector':
 			return ['graph_object_SSD', 0.007843, 1.0, False, (300,300), 3]
-		elif modelName is 'GoogleNet':
+		elif modelName == 'GoogleNet':
 			return ['graph_g', 0.007843, 1.0, False, (224,224), 4]
-		elif modelName is 'FaceNet':
+		elif modelName == 'FaceNet':
 			return ['graph_fn', 0.007843, 1.0, False, (160,160), 5]
-		elif modelName is 'SketchGuess':
+		elif modelName == 'SketchGuess':
 			return ['graph_sg', 0.007843, 1.0, False, (28,28), 6]
-		elif modelName is 'OCR':
+		elif modelName == 'OCR':
 			return ['graph_ocr',  0.0078125, 1.0, False, (40,40), 7]
-		elif modelName is 'squeeze':
+		elif modelName == 'squeeze':
 			return ['graph_sz',  1, 110.5, False, (227,227), 8]
-		elif modelName is 'FaceDetector_Plus':
-			return ['graph_face_SSD_Plus',  1, 110.5, False, (320,320), 2]
+		elif modelName == 'FaceRec':
+			return ['graph_face_rec', 0.007843, 1.0, False, (32,32), 4]
 		else:
 			self.msg('Using user\'s graph file')
 			return None 
@@ -500,7 +507,7 @@ class HS:
 			
 			box_color = (255, 128, 0) 
 			box_thickness = 2
-			cv2.rectangle(display_image, (box[2], box[3]), (box[4], box[5]), box_color, box_thickness)
+			cv2.rectangle(display_image, (int(box[2]), int(box[3])), (int(box[4]), int(box[5])), box_color, box_thickness)
 
 			label_background_color = (255, 128, 0)
 			label_text_color = (0, 255, 255)
@@ -512,12 +519,32 @@ class HS:
 				label_top = 1
 			label_right = box[2] + label_size[0]
 			label_bottom = box[3] + label_size[1]
-			cv2.rectangle(display_image, (label_left - 1, label_top - 1), (label_right + 1, label_bottom + 1),
+			cv2.rectangle(display_image, (int(label_left - 1), int(label_top - 1)), (int(label_right + 1), int(label_bottom + 1)),
 						  label_background_color, -1)
 
-			cv2.putText(display_image, label_text, (label_left, label_bottom), cv2.FONT_HERSHEY_SIMPLEX, 0.5, label_text_color, 1)
+			cv2.putText(display_image, label_text, (int(label_left), int(label_bottom)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, label_text_color, 1)
 		return display_image
 	
+	def cropObjects(self, result, labels=None):
+		if labels is None:
+			labels = self.labels
+
+		display_image = result[0]
+		boxes = result[1]
+		source_image_width = display_image.shape[1]
+		source_image_height = display_image.shape[0]
+
+		crops = []
+		info = []
+
+		for box in boxes:
+			class_id = box[0]
+			percentage = int(box[1] * 100)
+			if (box[4]-box[2] > self.imgSize[0]*0.8) or (box[5]-box[3] > self.imgSize[1]*0.8):
+				continue	
+			info = [self.labels[int(class_id)], box[1], box[2:6]]
+			crops.append(result[0][int(box[3]):int(box[5]),int(box[2]):int(box[4]),:])
+		return crops, info
 	
 	# Scene Recorder Related
 	def init_recorder(self):
@@ -709,6 +736,75 @@ class HS:
 			res += '[%d]-' % self.featBinLength[n]
 		self.msg(res)
 
+	def faceAlignment(self, detRet, onetRet, cropsize = (32,32), thresh=0.8, sface=True):
+		display_image = detRet[0]
+		
+		if sface:
+			cropsize = (96,112)
+			fs = np.array([[30.2946, 51.6963],
+						   [65.5318, 51.5014],
+						   [48.0252, 71.7366],
+						   [33.5493, 92.3655],
+						   [62.7299, 92.2041]], dtype=float)
+		else: # Standard square face
+			fs = np.array([	[ 0.2786825 ,  0.29763892],
+							[ 0.7191475 ,  0.2955507 ],
+							[ 0.50031501,  0.5123564 ],
+							[ 0.31936625,  0.73338038],
+							[ 0.68412375,  0.73165107]], dtype=float)
+			fs *= cropsize[0]
+							
+		src = np.zeros(fs.shape)
+		size = display_image.shape
+		focal_length = size[1]
+		center = (size[1]/2, size[0]/2)
+		camera_matrix = np.array(
+			[[focal_length, 0, center[1]],
+			 [0, focal_length, center[0]],
+			 [0, 0, 1]], dtype="double"
+		)
+		faces = []
+			 
+		for n in range(len(onetRet)):
+			detBox = detRet[1][n]
+			ret = onetRet[n][1]
+			prob = ret[1]
+			if prob < thresh:
+				faces.append(None)
+				continue
+			reg = ret[2:6]
+			lm = ret[6:]
+
+			# Regressed box	
+			bbw = detBox[4] - detBox[2] + 1
+			bbh = detBox[5] - detBox[3] + 1
+
+			regBox = [detBox[2] + reg[0] * bbw,
+		              detBox[3] + reg[1] * bbh,
+		              detBox[4] + reg[2] * bbw,
+		              detBox[5] + reg[3] * bbh]
+		              
+			cropped = display_image[int(detBox[3]):int(detBox[5]), int(detBox[2]):int(detBox[4]), :]
+			
+			for i in range(5):
+				src[i,0] = lm[i*2] * bbw
+				src[i,1] = lm[i*2 + 1] * bbh
+			
+			
+			tform = self.trans.estimate_transform('affine', src, fs) # Assume square
+			imcrop_aligned = cv2.warpPerspective(cropped, tform.params, cropsize, borderMode=1)
+
+			faces.append(imcrop_aligned)
+			
+			# Debug
+			#for j in range(5):
+			#	x = int(src[j,0])
+			#	y = int(src[j,1])
+			#	cv2.circle(cropped, (x, y), 1, (0, 0, 255), 10)
+			#cv2.imshow('1',cropped)
+			#cv2.imshow('',imcrop_aligned)
+			#cv2.waitKey(0)
+		return faces
 			
 # Util functions	
 	def getImage(self):
@@ -737,5 +833,4 @@ class HS:
 	def quit(self):
 		self.graph.DeallocateGraph()
 		self.device.CloseDevice()
-		sys.exit(1)
 		return

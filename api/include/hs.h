@@ -9,6 +9,20 @@
 #ifndef __HS_H_INCLUDED__
 #define __HS_H_INCLUDED__
 
+#ifndef __cplusplus
+#define bool _Bool
+#define true 1
+#define false 0
+#elif defined(__GNUC__) && !defined(__STRICT_ANSI__)
+/* Define _Bool, bool, false, true as a GNU extension. */
+#define _Bool bool
+#define bool  bool
+#define false false
+#define true  true
+#endif
+
+#define __bool_true_false_are_defined 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -68,8 +82,8 @@ extern "C" {
     hsStatus hsGetDeviceOption(void *deviceHandle, int option, void *data, unsigned int *dataLength);
     hsStatus hsLoadTensor(void *graphHandle, const void *inputTensor, unsigned int inputTensorLength, void *userParam);
     hsStatus hsGetResult(void *graphHandle, void **outputData, unsigned int *outputDataLength, void **userParam);
-    hsStatus hsDeviceGetImage(void *deviceHandle, void **outputData, _Bool truthy);
-    hsStatus hsGetImage(void *graphHandle, void **outputData,void *userParam,float std_value,float mean_value, _Bool truthy);
+    hsStatus hsDeviceGetImage(void *deviceHandle, void **outputData, bool truthy);
+    hsStatus hsGetImage(void *graphHandle, void **outputData,void *userParam,float std_value,float mean_value, bool truthy);
 #ifdef __cplusplus
 }
 #endif

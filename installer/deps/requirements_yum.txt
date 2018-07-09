@@ -1,0 +1,4 @@
+gcc-c++
+python34
+python34-pip
+python34-devel
